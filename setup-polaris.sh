@@ -1,18 +1,22 @@
 #!/bin/bash
 
-# Changing this will require some changes in nekIBM-ascent
+# Change install directory if desired
 INSTALL_DIR=~/ascent-bidirectional
-JUPYTER_SUPPORT=false
 
 # Create install directory
 mkdir -p $INSTALL_DIR
 cd $INSTALL_DIR
 
+# Clone custom Ascent
+git clone https://github.com/siramok/ascent.git
+
 # Clone nekIBM-ascent
 git clone https://github.com/siramok/nekIBM-ascent.git
 
+# Clone simulation data
+git clone https://github.com/siramok/nekIBM-lidar-sample.git $INSTALL_DIR/lidar
+
 # Create sourceme file
-if [ "$JUPYTER_SUPPORT" = true ] ; then
 cat << EOF > sourceme
 #!/bin/bash
 
@@ -22,6 +26,7 @@ module load cmake
 module swap PrgEnv-nvhpc PrgEnv-gnu
 module swap gcc/12.2.0 gcc/11.2.0
 module load cudatoolkit-standalone
+module load cray-python
 
 # Check for LD_PRELOAD
 if [[ -z "\${LD_PRELOAD}" ]]; then
@@ -29,62 +34,27 @@ if [[ -z "\${LD_PRELOAD}" ]]; then
 fi
 
 # Check for PYTHONPATH
-if [[ -z "\${PYTHONPATH}" ]]; then
-    export PYTHONPATH=$INSTALL_DIR/python-venv/lib/python3.6/site-packages:$INSTALL_DIR/ascent/scripts/build_ascent/install/ascent-develop/python-modules:$INSTALL_DIR/ascent/scripts/build_ascent/install/conduit-v0.8.8/python-modules
+if [[ -z "\${PYTHONPATH}" || "\${PYTHONPATH}" != *"ascent"* ]]; then
+    export PYTHONPATH=$INSTALL_DIR/ascent/scripts/build_ascent/install/ascent-develop/python-modules:$INSTALL_DIR/ascent/scripts/build_ascent/install/conduit-v0.8.8/python-modules:"\${PYTHONPATH}"
 fi
 
 # Check for NEK5000_HOME
 if [[ -z "\${NEK5000_HOME}" ]]; then
     export NEK5000_HOME=$INSTALL_DIR/nekIBM-ascent
-    export PATH=$INSTALL_DIR/nekIBM-ascent/bin:\$PATH
+    export PATH=$INSTALL_DIR/nekIBM-ascent/bin:"\${PATH}"
 fi
-
-# Source the Python venv
-source $INSTALL_DIR/python-venv/bin/activate
 
 EOF
 
-# Setup Python venv
-python3 -m venv python-venv
-source sourceme
+# Load necessary modules
+source $INSTALL_DIR/sourceme
+
+# Install Python dependencies
 pip install --upgrade pip setuptools wheel numpy mpi4py jupyterlab
 
-
-else
-cat << EOF > sourceme
-#!/bin/bash
-
-# Load modules
-module reset
-module load cmake
-module swap PrgEnv-nvhpc PrgEnv-gnu
-module swap gcc/12.2.0 gcc/11.2.0
-module load cudatoolkit-standalone
-
-# Check for LD_PRELOAD
-if [[ -z "\${LD_PRELOAD}" ]]; then
-    export LD_PRELOAD=/opt/cray/pe/gcc/11.2.0/snos/lib64/libstdc++.so.6
-fi
-
-# Check for NEK5000_HOME
-if [[ -z "\${NEK5000_HOME}" ]]; then
-    export NEK5000_HOME=$INSTALL_DIR/nekIBM-ascent
-    export PATH=$INSTALL_DIR/nekIBM-ascent/bin:\$PATH
-fi
-
-EOF
-
-source sourceme
-fi
-
-# Clone Ascent repo
-git clone https://github.com/siramok/ascent.git
-cd ascent/scripts/build_ascent/
-
-# Modify build script
+# Modify Ascent build script
+cd $INSTALL_DIR/ascent/scripts/build_ascent/
 rm build_ascent_cuda_polaris.sh
-
-if [ "$JUPYTER_SUPPORT" = true ] ; then
 cat << EOF > build_ascent_cuda_polaris.sh
 #!/bin/bash
 
@@ -95,39 +65,32 @@ export CXX=$(which CC)
 
 env build_jobs=8 enable_tests=OFF enable_mpi=ON enable_python=ON raja_enable_vectorization=OFF ./build_ascent_cuda.sh
 EOF
-else
-cat << EOF > build_ascent_cuda_polaris.sh
-#!/bin/bash
-
-source $INSTALL_DIR/sourceme
-
-export CC=$(which cc)
-export CXX=$(which CC)
-
-env build_jobs=8 enable_tests=OFF enable_mpi=ON raja_enable_vectorization=OFF ./build_ascent_cuda.sh
-EOF
-fi
-
-# Make the new build script executable
 chmod +x build_ascent_cuda_polaris.sh
 
 # Build Ascent
 ./build_ascent_cuda_polaris.sh
 
-if [ "$JUPYTER_SUPPORT" = true ] ; then
-# Build ascent-jupyter-bridge
-cd ascent/src/libs/ascent/python/ascent_jupyter_bridge/
-pip install -r requirements.txt
+# Build ascent_jupyter_bridge
+cd $INSTALL_DIR/ascent/scripts/build_ascent/ascent/src/libs/ascent/python/ascent_jupyter_bridge/
 sed -i 's/"enum34", //' setup.py
+pip install -r requirements.txt
 pip install .
+
+# Replace the install directory within nekIBM-ascent
+if [ "$INSTALL_DIR" != "~/ascent-bidirectional" ]
+then
+    sed -i "s|~/ascent-bidirectional|${INSTALL_DIR}|g" $INSTALL_DIR/nekIBM-ascent/bin/makenek
+    sed -i "s|~/ascent-bidirectional|${INSTALL_DIR}|g" $INSTALL_DIR/nekIBM-ascent/core/makefile.template
+    sed -i "s|~/ascent-bidirectional|${INSTALL_DIR}|g" $INSTALL_DIR/nekIBM-ascent/tools/maketools
 fi
 
-# Build nekIBM tools
+# Build nekIBM-ascent tools
 cd $INSTALL_DIR/nekIBM-ascent/tools
 ./maketools all
 
-# Setup lidar case
-cd $INSTALL_DIR
-cp -r /lus/eagle/clone/g2/projects/insitu/lidar_clean lidar
-cd lidar
+# Build lidar sample case
+cd $INSTALL_DIR/lidar
 makenek uniform
+
+# End
+echo "Finished building ascent-bidirectional"
