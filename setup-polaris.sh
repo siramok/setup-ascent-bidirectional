@@ -43,7 +43,6 @@ if [[ -z "\${NEK5000_HOME}" ]]; then
     export NEK5000_HOME=$INSTALL_DIR/nekIBM-ascent
     export PATH=$INSTALL_DIR/nekIBM-ascent/bin:"\${PATH}"
 fi
-
 EOF
 
 # Load necessary modules
@@ -60,8 +59,8 @@ cat << EOF > build_ascent_cuda_polaris.sh
 
 source $INSTALL_DIR/sourceme
 
-export CC=$(which cc)
-export CXX=$(which CC)
+export CC=\$(which cc)
+export CXX=\$(which CC)
 
 env build_jobs=8 enable_tests=OFF enable_mpi=ON enable_python=ON raja_enable_vectorization=OFF ./build_ascent_cuda.sh
 EOF
@@ -82,6 +81,7 @@ then
     sed -i "s|~/ascent-bidirectional|${INSTALL_DIR}|g" $INSTALL_DIR/nekIBM-ascent/bin/makenek
     sed -i "s|~/ascent-bidirectional|${INSTALL_DIR}|g" $INSTALL_DIR/nekIBM-ascent/core/makefile.template
     sed -i "s|~/ascent-bidirectional|${INSTALL_DIR}|g" $INSTALL_DIR/nekIBM-ascent/tools/maketools
+    sed -i "s|~/ascent-bidirectional|${INSTALL_DIR}|g" $INSTALL_DIR/nekIBM-ascent/3rd_party/nek_ascent/CMakeLists.txt
 fi
 
 # Build nekIBM-ascent tools
