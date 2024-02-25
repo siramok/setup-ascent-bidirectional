@@ -62,7 +62,7 @@ source $INSTALL_DIR/sourceme
 export CC=\$(which cc)
 export CXX=\$(which CC)
 
-env build_jobs=8 enable_tests=OFF enable_mpi=ON enable_python=ON raja_enable_vectorization=OFF ./build_ascent_cuda.sh
+env build_jobs=8 enable_tests=OFF enable_mpi=ON enable_python=ON raja_enable_vectorization=OFF ./build_ascent.sh
 EOF
 chmod +x build_ascent_cuda_polaris.sh
 
