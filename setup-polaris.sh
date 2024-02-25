@@ -49,7 +49,7 @@ EOF
 source $INSTALL_DIR/sourceme
 
 # Install Python dependencies
-pip install --upgrade pip setuptools wheel numpy mpi4py jupyterlab
+pip install --upgrade pip setuptools wheel numpy mpi4py jupyterlab notebook
 
 # Modify Ascent build script
 cd $INSTALL_DIR/ascent/scripts/build_ascent/
